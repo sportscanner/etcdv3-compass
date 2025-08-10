@@ -1,0 +1,150 @@
+{
+  "name": "etcd",
+  "displayName": "Etcd Compass",
+  "description": "Browse etcd v3 clusters and view key-value pairs",
+  "version": "1.0.0",
+  "publisher": "Sportscanner",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "icon": "media/etcd.png",
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished",
+    "onView:etcdExplorer.connections",
+    "onCommand:etcdExplorer.addConnection",
+    "onCommand:etcdExplorer.refresh",
+    "onCommand:etcdExplorer.deleteConnection",
+    "onCommand:etcdExplorer.refreshConnection",
+    "onCommand:etcdExplorer.addKey",
+    "onCommand:etcdExplorer.editKey",
+    "onCommand:etcdExplorer.deleteKey"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "etcdExplorer",
+          "title": "Etcd",
+          "icon": "media/etcd-activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "etcdExplorer": [
+        {
+          "id": "etcdExplorer.connections",
+          "name": "Connections"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "etcdExplorer.addConnection",
+        "title": "Add Etcd Connection",
+        "category": "Etcd",
+        "icon": "$(add)"
+      },
+      {
+        "command": "etcdExplorer.refresh",
+        "title": "Refresh",
+        "category": "Etcd",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "etcdExplorer.deleteConnection",
+        "title": "Delete Connection",
+        "category": "Etcd",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "etcdExplorer.refreshConnection",
+        "title": "Refresh Connection",
+        "category": "Etcd",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "etcdExplorer.addKey",
+        "title": "Add Key...",
+        "category": "Etcd",
+        "icon": "$(add)"
+      },
+      {
+        "command": "etcdExplorer.editKey",
+        "title": "Edit Key...",
+        "category": "Etcd",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "etcdExplorer.deleteKey",
+        "title": "Delete Key",
+        "category": "Etcd",
+        "icon": "$(trash)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "etcdExplorer.addConnection",
+          "when": "view == etcdExplorer.connections",
+          "group": "navigation@1"
+        },
+        {
+          "command": "etcdExplorer.refresh",
+          "when": "view == etcdExplorer.connections",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "etcdExplorer.refreshConnection",
+          "when": "view == etcdExplorer.connections && viewItem == etcd-connection",
+          "group": "inline@1"
+        },
+        {
+          "command": "etcdExplorer.addKey",
+          "when": "view == etcdExplorer.connections && viewItem == etcd-connection",
+          "group": "inline@2"
+        },
+        {
+          "command": "etcdExplorer.deleteConnection",
+          "when": "view == etcdExplorer.connections && viewItem == etcd-connection",
+          "group": "inline@9"
+        },
+        {
+          "command": "etcdExplorer.editKey",
+          "when": "view == etcdExplorer.connections && viewItem == etcd-key",
+          "group": "inline@1"
+        },
+        {
+          "command": "etcdExplorer.deleteKey",
+          "when": "view == etcdExplorer.connections && viewItem == etcd-key",
+          "group": "inline@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -watch -p .",
+    "package": "vsce package",
+    "vscode:prepublish": "npm run compile",
+    "build:icon": "node scripts/make-icon.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.5",
+    "vsce": "^2.15.0",
+    "sharp": "^0.33.4"
+  },
+  "dependencies": {
+    "etcd3": "^1.1.2"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}
