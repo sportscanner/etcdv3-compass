@@ -12,7 +12,10 @@ export class AddConnectionPanel {
       password?: string;
       envTag?: string;
       colorTheme?: string;
-    }) => Promise<void>
+      connectionTimeoutMs?: number;
+      idleConnectionTimeoutMs?: number;
+    }) => Promise<void>,
+    private readonly prefill?: any
   ) {}
 
   public show() {
@@ -31,7 +34,7 @@ export class AddConnectionPanel {
       }
     );
 
-    this.panel.webview.html = this.getHtml(this.panel.webview);
+    this.panel.webview.html = this.getHtml(this.panel.webview, this.prefill);
 
     this.panel.onDidDispose(() => {
       this.panel = undefined;
@@ -39,9 +42,9 @@ export class AddConnectionPanel {
 
     this.panel.webview.onDidReceiveMessage(async (message) => {
       if (message?.type === 'save-connection') {
-        const { name, endpoint, username, password, envTag, colorTheme } = message.payload ?? {};
+        const { name, endpoint, username, password, envTag, colorTheme, connectionTimeoutMs, idleConnectionTimeoutMs } = message.payload ?? {};
         try {
-          await this.onSave({ name, endpoint, username, password, envTag, colorTheme });
+          await this.onSave({ name, endpoint, username, password, envTag, colorTheme, connectionTimeoutMs, idleConnectionTimeoutMs });
           vscode.window.showInformationMessage(`Connection "${name}" added`);
           this.panel?.dispose();
         } catch (error: any) {
@@ -51,9 +54,15 @@ export class AddConnectionPanel {
     });
   }
 
-  private getHtml(webview: vscode.Webview): string {
+  private getHtml(webview: vscode.Webview, prefill?: any): string {
     const cspSource = webview.cspSource;
     const nonce = getNonce();
+    const preName = prefill?.name || '';
+    const preEndpoint = prefill?.endpoints ? prefill.endpoints[0] : '';
+    const preUsername = prefill?.username || '';
+    const prePassword = prefill?.password || '';
+    const preConnTimeout = prefill?.connectionTimeoutMs || '';
+    const preIdleTimeout = prefill?.idleConnectionTimeoutMs || '';
     return `<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -72,10 +81,13 @@ export class AddConnectionPanel {
         --border: var(--vscode-input-border);
       }
       html, body { height: 100%; }
-      body { font-family: var(--vscode-font-family); color: var(--fg); background: var(--bg); }
+      body { font-family: var(--vscode-font-family); color: var(--fg); background: linear-gradient(135deg, var(--bg) 0%, color-mix(in srgb, var(--accent) 8%, var(--bg) 92%) 100%); }
       .container { max-width: 980px; margin: 0 auto; padding: 18px; }
       .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 16px; box-shadow: 0 3px 10px rgba(0,0,0,0.18); }
-      h2 { margin: 0 0 12px; letter-spacing: 0.3px; }
+      h2 { margin: 0 0 12px; letter-spacing: 0.3px; font-size: 20px; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+      h3 { margin: 0 0 12px; font-size: 13px; color: var(--muted); font-weight: normal; }
+      label svg, label span.icon { margin-right: 4px; vertical-align: middle; }
+      label { display: flex; align-items: center; gap: 4px; }
       .stack { display: grid; grid-auto-rows: min-content; row-gap: 12px; }
       .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
       label { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: block; }
@@ -87,6 +99,10 @@ export class AddConnectionPanel {
       button.primary:hover { background: var(--vscode-button-hoverBackground); }
       details { margin-top: 6px; border-top: 1px dashed var(--border); padding-top: 10px; }
       details > summary { cursor: pointer; padding: 8px 0; color: var(--muted); }
+      .info-icon { position: relative; cursor: pointer; color: var(--muted); margin-left: 4px; transition: color 0.2s ease; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--muted); border-radius: 50%; width: 16px; height: 16px; font-size: 11px; }
+      .info-icon:hover { color: var(--accent); border-color: var(--accent); }
+      .info-icon .tooltip { visibility: hidden; opacity: 0; background: var(--card); color: var(--fg); font-weight: normal; text-align: left; border-radius: 6px; padding: 6px 8px; position: absolute; z-index: 1; top: 125%; left: 50%; transform: translateX(-50%); box-shadow: 0 2px 6px rgba(0,0,0,0.3); width: max-content; max-width: 240px; font-size: 12px; transition: opacity 0.2s ease; }
+      .info-icon:hover .tooltip { visibility: visible; opacity: 1; }
 
       /* Responsive adjustments */
       @media (max-width: 768px) {
@@ -99,25 +115,24 @@ export class AddConnectionPanel {
   <body>
     <div class="container">
       <div class="card">
-        <h2>Add Etcd Connection</h2>
+        <h2>Create a new connection <span class="info-icon">i<span class="tooltip">This is currently compatible with etcdv3</span></span></h2>
         <div class="stack">
           <div>
             <label for="name">Name</label>
-            <input id="name" type="text" placeholder="My Cluster" required />
+            <input id="name" type="text" placeholder="My Cluster" value="${preName}" required />
           </div>
           <div>
-            <label for="endpoint">Endpoint</label>
-            <input id="endpoint" type="text" placeholder="localhost:2379 or 127.0.0.1:2379" required />
-            <div class="hint">Use host:port (scheme not required). 'localhost' maps to 127.0.0.1; port defaults to 2379.</div>
+            <label for="endpoint">Endpoint <span class="info-icon">i<span class="tooltip">Use host:port (scheme not required). 'localhost' maps to 127.0.0.1</span></span></label>
+            <input id="endpoint" type="text" placeholder="localhost:2379 or 127.0.0.1:2379" value="${preEndpoint}" required />
           </div>
           <div class="row2">
             <div>
               <label for="username">Username (optional)</label>
-              <input id="username" type="text" placeholder="Optional" />
+              <input id="username" type="text" placeholder="Optional" value="${preUsername}" />
             </div>
             <div>
               <label for="password">Password (optional)</label>
-              <input id="password" type="password" placeholder="Optional" />
+              <input id="password" type="password" placeholder="Optional" value="${prePassword}" />
             </div>
           </div>
           <details>
@@ -147,6 +162,21 @@ export class AddConnectionPanel {
                 <div class="hint">Used to tint the connection icon and label.</div>
               </div>
             </div>
+            <details style="margin-top:10px;">
+              <summary>Connection Settings</summary>
+              <div class="row2" style="margin-top:10px;">
+                <div>
+                  <label for="connectionTimeoutMs">Connection Timeout (ms) <span class="info-icon">i<span class="tooltip">Time to wait when establishing a connection before failing.</span></span></label>
+                  <input id="connectionTimeoutMs" type="text" pattern="\\d*" placeholder="5000" value="${preConnTimeout}" />
+                  <div class="hint">Time to wait when establishing a connection before failing.</div>
+                </div>
+                <div>
+                  <label for="idleConnectionTimeoutMs">Idle Connection Timeout (ms) <span class="info-icon">i<span class="tooltip">Close connection after being idle for this duration (0 to disable).</span></span></label>
+                  <input id="idleConnectionTimeoutMs" type="text" pattern="\\d*" placeholder="0" value="${preIdleTimeout}" />
+                  <div class="hint">Close connection after being idle for this duration (0 to disable).</div>
+                </div>
+              </div>
+            </details>
           </details>
           <div class="actions">
             <button class="primary" id="save">Save Connection</button>
@@ -164,8 +194,10 @@ export class AddConnectionPanel {
         const password = document.getElementById('password').value;
         const envTag = document.getElementById('envTag').value || undefined;
         const colorTheme = document.getElementById('colorTheme').value || undefined;
+        const connectionTimeoutMs = parseInt(document.getElementById('connectionTimeoutMs').value) || undefined;
+        const idleConnectionTimeoutMs = parseInt(document.getElementById('idleConnectionTimeoutMs').value) || undefined;
         if (!name || !endpoint) return;
-        vscode.postMessage({ type: 'save-connection', payload: { name, endpoint, username: username || undefined, password: password || undefined, envTag, colorTheme } });
+        vscode.postMessage({ type: 'save-connection', payload: { name, endpoint, username: username || undefined, password: password || undefined, envTag, colorTheme, connectionTimeoutMs, idleConnectionTimeoutMs } });
       });
     </script>
   </body>

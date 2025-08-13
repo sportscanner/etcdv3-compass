@@ -2,7 +2,7 @@
   "name": "etcd",
   "displayName": "Etcd Compass",
   "description": "Browse etcd v3 clusters and view key-value pairs",
-  "version": "1.0.0",
+  "version": "1.1.2",
   "publisher": "Sportscanner",
   "engines": {
     "vscode": "^1.85.0"
@@ -13,15 +13,7 @@
   "icon": "media/etcd.png",
   "main": "./out/extension.js",
   "activationEvents": [
-    "onStartupFinished",
-    "onView:etcdExplorer.connections",
-    "onCommand:etcdExplorer.addConnection",
-    "onCommand:etcdExplorer.refresh",
-    "onCommand:etcdExplorer.deleteConnection",
-    "onCommand:etcdExplorer.refreshConnection",
-    "onCommand:etcdExplorer.addKey",
-    "onCommand:etcdExplorer.editKey",
-    "onCommand:etcdExplorer.deleteKey"
+    "onStartupFinished"
   ],
   "contributes": {
     "viewsContainers": {
@@ -37,7 +29,8 @@
       "etcdExplorer": [
         {
           "id": "etcdExplorer.connections",
-          "name": "Connections"
+          "name": "Connections",
+          "icon": "media/etcd.png"
         }
       ]
     },
@@ -47,6 +40,12 @@
         "title": "Add Etcd Connection",
         "category": "Etcd",
         "icon": "$(add)"
+      },
+      {
+        "command": "etcdExplorer.editConnection",
+        "title": "Edit Connection",
+        "category": "Etcd",
+        "icon": "$(edit)"
       },
       {
         "command": "etcdExplorer.refresh",
@@ -83,6 +82,18 @@
         "title": "Delete Key",
         "category": "Etcd",
         "icon": "$(trash)"
+      },
+      {
+        "command": "etcdExplorer.toggleTreeView",
+        "title": "Toggle Tree View",
+        "category": "Etcd",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "etcdExplorer.toggleFlatten",
+        "title": "Toggle Flatten",
+        "category": "Etcd",
+        "icon": "$(list-flat)"
       }
     ],
     "menus": {
@@ -102,27 +113,44 @@
         {
           "command": "etcdExplorer.refreshConnection",
           "when": "view == etcdExplorer.connections && viewItem == etcd-connection",
-          "group": "inline@1"
+          "group": "inline@1",
+          "icon": "$(refresh)"
+        },
+        {
+          "command": "etcdExplorer.editConnection",
+          "when": "view == etcdExplorer.connections && viewItem == etcd-connection",
+          "group": "inline@1.5",
+          "icon": "$(edit)"
         },
         {
           "command": "etcdExplorer.addKey",
           "when": "view == etcdExplorer.connections && viewItem == etcd-connection",
-          "group": "inline@2"
+          "group": "inline@2",
+          "icon": "$(add)"
         },
         {
           "command": "etcdExplorer.deleteConnection",
           "when": "view == etcdExplorer.connections && viewItem == etcd-connection",
-          "group": "inline@9"
+          "group": "inline@9",
+          "icon": "$(trash)"
+        },
+        {
+          "command": "etcdExplorer.toggleFlatten",
+          "when": "view == etcdExplorer.connections && viewItem == etcd-connection",
+          "group": "inline@4",
+          "icon": "$(list-flat)"
         },
         {
           "command": "etcdExplorer.editKey",
           "when": "view == etcdExplorer.connections && viewItem == etcd-key",
-          "group": "inline@1"
+          "group": "inline@1",
+          "icon": "$(edit)"
         },
         {
           "command": "etcdExplorer.deleteKey",
           "when": "view == etcdExplorer.connections && viewItem == etcd-key",
-          "group": "inline@2"
+          "group": "inline@2",
+          "icon": "$(trash)"
         }
       ]
     }

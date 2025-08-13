@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { AddConnectionPanel } from './panels/AddConnectionPanel';
-import { EtcdTreeDataProvider } from './tree/EtcdTreeDataProvider';
+import { EtcdTreeDataProvider, ConnectionItem } from './tree/EtcdTreeDataProvider';
 import { EtcdDecorationProvider } from './decorations/EtcdDecorationProvider';
 import { EtcdConnection } from './types';
 
@@ -34,10 +34,10 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(vscode.window.registerFileDecorationProvider(decProvider));
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('etcdExplorer.addConnection', async () => {
+    vscode.commands.registerCommand('etcdExplorer.addConnection', async (prefill?: Partial<EtcdConnection>) => {
       const panel = new AddConnectionPanel(async (data) => {
         const connections = loadConnections(context);
-        const id = generateId();
+        const id = prefill?.id || generateId();
         const endpoint = normalizeEndpoint(data.endpoint);
         const newConn: EtcdConnection = {
           id,
@@ -47,16 +47,32 @@ export function activate(context: vscode.ExtensionContext) {
           password: data.password,
           envTag: (data as any).envTag,
           colorTheme: (data as any).colorTheme,
-        };
-        await context.globalState.update(STATE_KEY, [...connections, newConn]);
-        treeProvider.setConnections([...connections, newConn]);
+          connectionTimeoutMs: (data as any).connectionTimeoutMs,
+          idleConnectionTimeoutMs: (data as any).idleConnectionTimeoutMs
+        } as any;
+        let updatedList: EtcdConnection[];
+        if (prefill?.id) {
+          updatedList = connections.map(c => c.id === prefill.id ? newConn : c);
+        } else {
+          updatedList = [...connections, newConn];
+        }
+        await context.globalState.update(STATE_KEY, updatedList);
+        treeProvider.setConnections(updatedList);
         if (newConn.colorTheme) {
           const uri = vscode.Uri.parse(`etcd:${newConn.id}`);
           colorMap.set(uri.toString(), new vscode.ThemeColor(newConn.colorTheme));
           decProvider.refresh(uri);
         }
-      });
+      }, prefill);
       panel.show();
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('etcdExplorer.editConnection', async (item?: any) => {
+      const selected = item?.connection as EtcdConnection | undefined;
+      if (!selected) return;
+      vscode.commands.executeCommand('etcdExplorer.addConnection', selected);
     })
   );
 
@@ -165,6 +181,20 @@ export function activate(context: vscode.ExtensionContext) {
     }
   }
   decProvider.refresh();
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('etcdExplorer.toggleTreeView', async (connectionItem: ConnectionItem) => {
+      connectionItem.isTreeView = !connectionItem.isTreeView; // Toggle tree view mode
+      treeProvider.refreshItem(connectionItem); // Refresh tree view
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('etcdExplorer.toggleFlatten', (connectionItem: ConnectionItem) => {
+      connectionItem.isFlattened = !connectionItem.isFlattened; // Toggle flatten mode
+      treeProvider.refreshItem(connectionItem); // Refresh tree view
+    })
+  );
 }
 
 export function deactivate() {}

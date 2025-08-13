@@ -6,6 +6,10 @@ export class EtcdDecorationProvider implements vscode.FileDecorationProvider {
 
   constructor(private readonly getColorFor: (uri: vscode.Uri) => vscode.ThemeColor | undefined) {}
 
+  dispose() {
+    this.emitter.dispose();
+  }
+
   provideFileDecoration(uri: vscode.Uri): vscode.ProviderResult<vscode.FileDecoration> {
     const color = this.getColorFor(uri);
     if (color) {
@@ -18,5 +22,3 @@ export class EtcdDecorationProvider implements vscode.FileDecorationProvider {
     this.emitter.fire(uris);
   }
 }
-
-
