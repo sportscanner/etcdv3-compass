@@ -7,6 +7,14 @@ src/**
 node_modules/.bin/**
 .git/**
 .github/**
+scripts/**
 **/*.log
+**/.DS_Store
+**/tsconfig.json
+.gitignore
+.gitattributes
+*.vsix
+CLAUDE.md
+.claude/**
 
 

@@ -2,7 +2,7 @@
   "name": "etcd",
   "displayName": "Etcd Compass",
   "description": "Browse etcd v3 clusters and view key-value pairs",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "publisher": "Sportscanner",
   "engines": {
     "vscode": "^1.85.0"
@@ -94,6 +94,18 @@
         "title": "Toggle Flatten",
         "category": "Etcd",
         "icon": "$(list-flat)"
+      },
+      {
+        "command": "etcdExplorer.exportConnections",
+        "title": "Export Connections...",
+        "category": "Etcd",
+        "icon": "$(export)"
+      },
+      {
+        "command": "etcdExplorer.importConnections",
+        "title": "Import Connections...",
+        "category": "Etcd",
+        "icon": "$(cloud-download)"
       }
     ],
     "menus": {
@@ -107,6 +119,16 @@
           "command": "etcdExplorer.refresh",
           "when": "view == etcdExplorer.connections",
           "group": "navigation@2"
+        },
+        {
+          "command": "etcdExplorer.importConnections",
+          "when": "view == etcdExplorer.connections",
+          "group": "1_porting@1"
+        },
+        {
+          "command": "etcdExplorer.exportConnections",
+          "when": "view == etcdExplorer.connections",
+          "group": "1_porting@2"
         }
       ],
       "view/item/context": [

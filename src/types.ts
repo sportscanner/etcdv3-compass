@@ -6,6 +6,9 @@ export interface EtcdConnection {
   password?: string;
   envTag?: 'dev' | 'prod' | 'staging' | 'qa';
   colorTheme?: 'charts.green' | 'charts.red' | 'charts.blue' | 'charts.yellow' | 'charts.orange' | 'charts.purple';
+  connectionTimeoutMs?: number;
+  idleConnectionTimeoutMs?: number;
+  operationTimeoutMs?: number;
 }
 
 

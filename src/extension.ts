@@ -1,10 +1,21 @@
 import * as vscode from 'vscode';
+import * as os from 'os';
 import { AddConnectionPanel } from './panels/AddConnectionPanel';
 import { EtcdTreeDataProvider, ConnectionItem } from './tree/EtcdTreeDataProvider';
 import { EtcdDecorationProvider } from './decorations/EtcdDecorationProvider';
 import { EtcdConnection } from './types';
 
 const STATE_KEY = 'etcdConnections';
+
+const EXPORT_TYPE = 'etcd-compass-connections';
+const EXPORT_VERSION = 1;
+
+interface ExportFile {
+  type: string;
+  version: number;
+  exportedAt: string;
+  connections: Omit<EtcdConnection, 'id'>[];
+}
 
 export function activate(context: vscode.ExtensionContext) {
   const treeProvider = new EtcdTreeDataProvider();
@@ -48,8 +59,9 @@ export function activate(context: vscode.ExtensionContext) {
           envTag: (data as any).envTag,
           colorTheme: (data as any).colorTheme,
           connectionTimeoutMs: (data as any).connectionTimeoutMs,
-          idleConnectionTimeoutMs: (data as any).idleConnectionTimeoutMs
-        } as any;
+          idleConnectionTimeoutMs: (data as any).idleConnectionTimeoutMs,
+          operationTimeoutMs: (data as any).operationTimeoutMs
+        };
         let updatedList: EtcdConnection[];
         if (prefill?.id) {
           updatedList = connections.map(c => c.id === prefill.id ? newConn : c);
@@ -162,11 +174,32 @@ export function activate(context: vscode.ExtensionContext) {
         'Delete'
       );
       if (confirm !== 'Delete') return;
+      
+      const progressOptions = {
+        location: vscode.ProgressLocation.Notification,
+        title: "Deleting key...",
+        cancellable: false
+      };
+      
       try {
-        const client = await treeProvider.getClientByConnectionId(keyItem.connectionId);
-        await client.delete().key(keyItem.key!);
+        await vscode.window.withProgress(progressOptions, async (progress) => {
+          progress.report({ message: `Deleting ${keyItem.key}...` });
+          
+          const client = await treeProvider.getClientByConnectionId(keyItem.connectionId!);
+          
+          // Add timeout to delete operation
+          const deletePromise = client.delete().key(keyItem.key!);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Delete operation timed out after 15 seconds')), 15000)
+          );
+          
+          await Promise.race([deletePromise, timeoutPromise]);
+        });
+        
         vscode.window.showInformationMessage('Key deleted');
-        treeProvider.refresh();
+        // Only refresh the specific connection, not all connections
+        const connectionItem = new ConnectionItem(treeProvider.getConnections().find(c => c.id === keyItem.connectionId)!, 'unknown');
+        treeProvider.refreshConnection(connectionItem);
       } catch (err: any) {
         vscode.window.showErrorMessage(err?.message || 'Failed to delete key');
       }
@@ -183,16 +216,121 @@ export function activate(context: vscode.ExtensionContext) {
   decProvider.refresh();
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('etcdExplorer.toggleTreeView', async (connectionItem: ConnectionItem) => {
+    vscode.commands.registerCommand('etcdExplorer.toggleTreeView', async (connectionItem?: ConnectionItem) => {
+      if (!connectionItem) {
+        vscode.window.showErrorMessage('Please select a connection first');
+        return;
+      }
       connectionItem.isTreeView = !connectionItem.isTreeView; // Toggle tree view mode
-      treeProvider.refreshItem(connectionItem); // Refresh tree view
+      // Instant refresh without clearing cache for immediate toggle
+      treeProvider.refreshConnectionInstant(connectionItem);
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('etcdExplorer.toggleFlatten', (connectionItem: ConnectionItem) => {
+    vscode.commands.registerCommand('etcdExplorer.toggleFlatten', (connectionItem?: ConnectionItem) => {
+      if (!connectionItem) {
+        vscode.window.showErrorMessage('Please select a connection first');
+        return;
+      }
       connectionItem.isFlattened = !connectionItem.isFlattened; // Toggle flatten mode
-      treeProvider.refreshItem(connectionItem); // Refresh tree view
+      // Instant refresh without clearing cache for immediate toggle
+      treeProvider.refreshConnectionInstant(connectionItem);
+    })
+  );
+
+  // Export all connections (including credentials) to a JSON file for sharing
+  context.subscriptions.push(
+    vscode.commands.registerCommand('etcdExplorer.exportConnections', async () => {
+      const connections = loadConnections(context);
+      if (!connections.length) {
+        vscode.window.showInformationMessage('No connections to export.');
+        return;
+      }
+
+      const hasCredentials = connections.some((c) => c.username || c.password);
+      if (hasCredentials) {
+        const proceed = await vscode.window.showWarningMessage(
+          'This export includes usernames and passwords in plain text. Only share it with people you trust.',
+          { modal: true },
+          'Export'
+        );
+        if (proceed !== 'Export') return;
+      }
+
+      const payload: ExportFile = {
+        type: EXPORT_TYPE,
+        version: EXPORT_VERSION,
+        exportedAt: new Date().toISOString(),
+        // Strip internal ids so importing never clobbers existing connections
+        connections: connections.map(({ id, ...rest }) => rest),
+      };
+
+      // Default to the open workspace folder, falling back to the home directory,
+      // so the save dialog never lands on a read-only location like the fs root.
+      const baseFolder =
+        vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.file(os.homedir());
+      const target = await vscode.window.showSaveDialog({
+        title: 'Export Etcd Connections',
+        saveLabel: 'Export',
+        defaultUri: vscode.Uri.joinPath(baseFolder, 'etcd-connections.json'),
+        filters: { JSON: ['json'] },
+      });
+      if (!target) return;
+
+      try {
+        const data = Buffer.from(JSON.stringify(payload, null, 2), 'utf8');
+        await vscode.workspace.fs.writeFile(target, data);
+        vscode.window.showInformationMessage(
+          `Exported ${connections.length} connection${connections.length === 1 ? '' : 's'}.`
+        );
+      } catch (err: any) {
+        vscode.window.showErrorMessage(err?.message || 'Failed to export connections');
+      }
+    })
+  );
+
+  // Import connections from a JSON file produced by Export
+  context.subscriptions.push(
+    vscode.commands.registerCommand('etcdExplorer.importConnections', async () => {
+      const picked = await vscode.window.showOpenDialog({
+        title: 'Import Etcd Connections',
+        openLabel: 'Import',
+        canSelectMany: false,
+        filters: { JSON: ['json'] },
+      });
+      if (!picked || !picked.length) return;
+
+      let imported: EtcdConnection[];
+      try {
+        const raw = await vscode.workspace.fs.readFile(picked[0]);
+        imported = parseImportedConnections(Buffer.from(raw).toString('utf8'));
+      } catch (err: any) {
+        vscode.window.showErrorMessage(err?.message || 'Failed to read connections file');
+        return;
+      }
+
+      if (!imported.length) {
+        vscode.window.showWarningMessage('No valid connections found in the selected file.');
+        return;
+      }
+
+      const existing = loadConnections(context);
+      const updatedList = [...existing, ...imported];
+      await context.globalState.update(STATE_KEY, updatedList);
+      treeProvider.setConnections(updatedList);
+
+      // Register colors for newly imported connections
+      for (const c of imported) {
+        if (c.colorTheme) {
+          colorMap.set(vscode.Uri.parse(`etcd:${c.id}`).toString(), new vscode.ThemeColor(c.colorTheme));
+        }
+      }
+      decProvider.refresh();
+
+      vscode.window.showInformationMessage(
+        `Imported ${imported.length} connection${imported.length === 1 ? '' : 's'}.`
+      );
     })
   );
 }
@@ -225,6 +363,59 @@ function normalizeEndpoint(input: string): string {
     }
     return stripped;
   }
+}
+
+// Parse and validate a connections JSON file, returning ready-to-store
+// EtcdConnection records with fresh ids and normalized endpoints.
+function parseImportedConnections(text: string): EtcdConnection[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error('File is not valid JSON');
+  }
+
+  // Accept either the wrapped export format or a bare array of connections
+  const rawList = Array.isArray(parsed)
+    ? parsed
+    : (parsed as ExportFile | undefined)?.connections;
+
+  if (!Array.isArray(rawList)) {
+    throw new Error('File does not contain a connections list');
+  }
+
+  const result: EtcdConnection[] = [];
+  for (const entry of rawList) {
+    if (!entry || typeof entry !== 'object') continue;
+    const c = entry as Record<string, unknown>;
+
+    // Endpoints may arrive as an array, or as a single "endpoint" string
+    let endpoints: string[] = [];
+    if (Array.isArray(c.endpoints)) {
+      endpoints = c.endpoints.filter((e): e is string => typeof e === 'string');
+    } else if (typeof (c as any).endpoint === 'string') {
+      endpoints = [(c as any).endpoint];
+    }
+    endpoints = endpoints.map((e) => normalizeEndpoint(e)).filter(Boolean);
+    if (!endpoints.length) continue;
+
+    const name = typeof c.name === 'string' && c.name.trim() ? c.name.trim() : endpoints[0];
+
+    result.push({
+      id: generateId(),
+      name,
+      endpoints,
+      username: typeof c.username === 'string' ? c.username : undefined,
+      password: typeof c.password === 'string' ? c.password : undefined,
+      envTag: c.envTag as EtcdConnection['envTag'],
+      colorTheme: c.colorTheme as EtcdConnection['colorTheme'],
+      connectionTimeoutMs: typeof c.connectionTimeoutMs === 'number' ? c.connectionTimeoutMs : undefined,
+      idleConnectionTimeoutMs: typeof c.idleConnectionTimeoutMs === 'number' ? c.idleConnectionTimeoutMs : undefined,
+      operationTimeoutMs: typeof c.operationTimeoutMs === 'number' ? c.operationTimeoutMs : undefined,
+    });
+  }
+
+  return result;
 }
 
 function sanitizeConnections(

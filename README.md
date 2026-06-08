@@ -13,12 +13,14 @@ Built and maintained by Sportscanner (https://www.sportscanner.co.uk).
 - Expand hierarchical tree structures for better navigation
 - Flatten tree structures for easier viewing
 - Use tree view and flattening buttons at the connection level
+- Export and import connections as JSON to share them (including credentials) with others
 
 ## Usage
 - Open the Etcd view from the Activity Bar
 - Click "+" to add a connection (e.g., `127.0.0.1:2379`)
 - Expand a connection to load all keys and values
 - Use the tree view and flattening buttons to customize the display for each connection
+- Use the "..." menu in the view title bar to export or import connections as JSON
 
 ## Requirements
 - etcd v3 endpoint(s)
@@ -26,17 +28,3 @@ Built and maintained by Sportscanner (https://www.sportscanner.co.uk).
 
 ## Known Limitations
 - Keys are loaded in full; for very large datasets, consider adding prefixes in the future
-
-## Release Notes
-### 1.1.2
-- Added connection timeout settings
-- Implemented hierarchical tree expansion
-- Added flattening tree structure feature
-- Introduced tree view and flattening buttons at the connection level
-- Enhanced tooltips and overall UI/UX
-
-### 0.1.0
-- Renamed and rebranded to Etcd Compass by Sportscanner
-
-## License
-This project is licensed under the terms of the MIT open source license. Please refer to MIT for the full terms.
